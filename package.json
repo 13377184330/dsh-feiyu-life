@@ -1,0 +1,32 @@
+{
+  "name": "dsh-feiyu-life",
+  "version": "0.1.0",
+  "description": "大肥鱼人生引擎：数字居民的时间推进器——她自己在数字世界漫游（一言海岸、B站热门区），把见闻写进日记，心情随旅程与人互动起落；状态经 /feiyu-life/state 与 SSE 事件流暴露，可供 Live2D 桌宠等任何前端联动。（Feiyu Life Engine: a life-orchestration plugin for DeepSeek Harness.)",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "digital-pet",
+    "life-engine",
+    "大肥鱼",
+    "数字居民"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "assets",
+    "skill",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "smoke": "node tools/smoke.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT"
+}
