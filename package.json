@@ -28,5 +28,13 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/13377184330/dsh-feiyu-life.git"
+  },
+  "bugs": {
+    "url": "https://github.com/13377184330/dsh-feiyu-life/issues"
+  },
+  "homepage": "https://github.com/13377184330/dsh-feiyu-life"
 }
