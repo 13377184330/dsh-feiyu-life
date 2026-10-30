@@ -85,8 +85,9 @@ const ctx = {
 // （返回普通对象会 TypeError: Invalid effect，宿主实测踩过）。本插件返回清理函数。
 const dispose = plugin.apply(ctx)
 check('插件挂载并返回清理函数', typeof dispose === 'function')
-check('五个路由已注册（含面板）', ['/feiyu-life/state', '/feiyu-life/events', '/feiyu-life/travel', '/feiyu-life/say', '/feiyu-life/panel.js']
+check('四个路由已注册', ['/feiyu-life/state', '/feiyu-life/events', '/feiyu-life/travel', '/feiyu-life/say']
   .every((p) => routes.has(p)))
+check('不注入任何 UI（展示交给桌宠）', ![...routes.keys()].includes('/feiyu-life/panel.js'))
 
 // —— 2. 状态端点 ——
 {
@@ -138,16 +139,13 @@ check('SSE 握手事件', sse.chunks.length === 1 && sse.chunks[0].includes('"he
 
 
 
-// —— 5b. autoSay 默认关闭：归来不冒泡（不消耗 token）；面板脚本可路由 ——
+// —— 5b. autoSay 默认关闭：归来不冒泡（不消耗 token） ——
 {
   said.length = 0
   const res = mockRes()
   await routes.get('/feiyu-life/travel')({ method: 'POST' }, res)
   const body = JSON.parse(res.body)
   check('autoSay 默认关：归来不冒泡', body.ok === true && said.length === 0, 'said=' + said.length)
-  const panel = mockRes()
-  await routes.get('/feiyu-life/panel.js')({ method: 'GET' }, panel)
-  check('面板脚本可路由', panel.statusCode === 200 && panel.body.includes('feiyu-life-panel'), panel.body.slice(0, 30))
 }
 
 // —— 5c. 人设自定义生效：日记用 persona.json 词库 ——
