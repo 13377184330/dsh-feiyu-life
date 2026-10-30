@@ -32,9 +32,10 @@ dsh plugin --profile web add github:<你的用户名>/dsh-feiyu-life
 
 | 端点 | 方法 | 说明 |
 |---|---|---|
-| `/feiyu-life/state` | GET | 人生状态 JSON（mood / doing / journeys / stats） |
-| `/feiyu-life/events` | GET | SSE 事件流：roam-start / diary / mood / attention / hello |
+| `/feiyu-life/state` | GET | 人生状态 JSON（mood / doing / journeys / postcards / stats） |
+| `/feiyu-life/events` | GET | SSE 事件流：roam-start / diary / mood / attention / postcard / qq-sent |
 | `/feiyu-life/travel` | POST | 催她出门（受红线保护，深夜/超限会被拒绝） |
+| `/feiyu-life/postcard` | GET | 明信片图片（?id=，生图开启时存在） |
 | `/feiyu-life/say` | POST | 她说话：`{"text": "..."}` 经宿主 sessionController 送进会话 |
 
 ## 配置 `~/.dsh/feiyu-life/config.json`
@@ -47,12 +48,31 @@ dsh plugin --profile web add github:<你的用户名>/dsh-feiyu-life
   "dailyMax": 6,
   "quietHours": [0, 8],
   "destinations": ["hitokoto", "bilibili-hot"],
-  "autoSay": false
+  "autoSay": false,
+  "postcard": {
+    "enabled": false,
+    "backend": "ark",
+    "baseUrl": "",
+    "model": "doubao-seedream-5-0-flash-260915",
+    "size": "2K",
+    "apiKey": ""
+  },
+  "qq": {
+    "enabled": false,
+    "httpUrl": "http://127.0.0.1:3000",
+    "token": "",
+    "groups": []
+  }
 }
 ```
 
+- **autoSay**（默认关）：归来把日记送进当前会话 → agent 接话 → 桌宠活动联动。每次冒泡 = 一次 agent 调用（消耗 token）；漫游/日记/心情本身零 token。
+- **postcard**（默认关）：归来生成水彩明信片图（存 `~/.dsh/feiyu-life/postcards/`，借 Travel-Fish 的场景与画风设定，协议 ark/compatible 兼容）。每张图约 ¥0.12 量级，需自行填入 API Key；失败静默回退纯文本。
+- **qq**（默认关）：归来把见闻发到 QQ 群，走 NapCat 的 OneBot v11 HTTP（`send_group_msg`）。频率受 dailyMax 红线封顶、深夜静默窗不发。
+- 人设词库：`~/.dsh/feiyu-life/persona.json`（开场白/收尾/心情词，随包默认可改）
+
 演示节奏：`tickMs` 调到 20000、`dailyMax` 调大即可看到高频人生流。
-人生数据（重启不丢）：`~/.dsh/feiyu-life/state.json` + `diary.jsonl`（append-only）。
+人生数据（重启不丢）：`~/.dsh/feiyu-life/`（state.json / diary.jsonl / postcards/）。
 
 ## 测试
 

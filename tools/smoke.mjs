@@ -2,8 +2,9 @@
  * dsh-feiyu-life 冒烟测试：mock 宿主全链路演练（不依赖真实 DSH）。
  *
  * 跑法：node tools/smoke.mjs
- * 覆盖：插件挂载 → 状态端点 → 催出门（真实网络，断网时走馆内风景回退）
- *       → SSE 事件 → "被理了"心情联动 → say 端点 → 卸载清理。
+ * 覆盖：挂载 → 状态 → 真实漫游（mock fetch 拦截外部 API → 馆内风景回退）
+ *       → SSE → 被理了 → autoSay 默认关 → 人设自定义 → 明信片生图（mock）
+ *       → QQ 水群（mock OneBot）→ say → 持久化。
  */
 
 import fs from 'node:fs'
@@ -16,12 +17,13 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'feiyu-life-smoke-'))
 process.env.DSH_HOME = TMP
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-// persona.json 必须在 import 插件前写入（模块顶层 loadPersona）
+
+// persona.json / config.json 必须在 import 插件前写入（模块顶层读取）
 {
-  const personaDir = path.join(TMP, 'feiyu-life')
-  fs.mkdirSync(personaDir, { recursive: true })
+  const dir = path.join(TMP, 'feiyu-life')
+  fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(
-    path.join(personaDir, 'persona.json'),
+    path.join(dir, 'persona.json'),
     JSON.stringify({
       diaryOpenings: ['自定义开场：路过{dest}时，自定义地记下了'],
       diaryClosings: { happy: ['自定义开心收尾'], normal: ['自定义普通收尾'], sad: ['自定义低落收尾'] },
@@ -29,7 +31,41 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
     }),
     'utf8',
   )
+  // 测试配置：开启明信片生图（compatible 后端指向 mock）与 QQ 水群（指向 mock）
+  fs.writeFileSync(
+    path.join(dir, 'config.json'),
+    JSON.stringify({
+      quietHours: [0, 0],
+      postcard: { enabled: true, backend: 'compatible', baseUrl: 'http://mock-image', apiKey: 'test-key', model: 'mock-model', size: '2K' },
+      qq: { enabled: true, httpUrl: 'http://mock-qq', token: 't', groups: [123456] },
+    }),
+    'utf8',
+  )
 }
+
+// mock 全局 fetch：生图端点返回 PNG、QQ 端点记录调用、其余一律失败（触发馆内风景回退）
+const imageCalls = []
+const qqCalls = []
+const PNG_MAGIC = Buffer.from(
+  '89504e470d0a1a0a0000000d4948445200000100000001000806000000' +
+    '5d720000001b49444154789c6360000002000100' + 'ffffffffff' + '0000000049454e44ae426082',
+  'hex',
+)
+// 生图产物合理性检查要求 >1000 字节，mock 补齐（真实图都在几百 KB 以上）
+const PNG_MOCK = Buffer.concat([PNG_MAGIC, Buffer.alloc(1500 - PNG_MAGIC.length, 0x61)])
+globalThis.fetch = async (url, init) => {
+  const u = String(url)
+  if (u.startsWith('http://mock-image')) {
+    imageCalls.push(JSON.parse(init.body))
+    return { ok: true, json: async () => ({ data: [{ b64_json: PNG_MOCK.toString('base64') }] }) }
+  }
+  if (u.startsWith('http://mock-qq')) {
+    qqCalls.push({ url: u, body: JSON.parse(init.body) })
+    return { ok: true }
+  }
+  return { ok: false, status: 404, json: async () => ({}) }
+}
+
 const plugin = (await import(pathToFileURL(path.join(ROOT, 'lib', 'index.js')).href)).default
 
 let passed = 0
@@ -85,7 +121,7 @@ const ctx = {
 // （返回普通对象会 TypeError: Invalid effect，宿主实测踩过）。本插件返回清理函数。
 const dispose = plugin.apply(ctx)
 check('插件挂载并返回清理函数', typeof dispose === 'function')
-check('四个路由已注册', ['/feiyu-life/state', '/feiyu-life/events', '/feiyu-life/travel', '/feiyu-life/say']
+check('五个路由已注册', ['/feiyu-life/state', '/feiyu-life/events', '/feiyu-life/travel', '/feiyu-life/say', '/feiyu-life/postcard']
   .every((p) => routes.has(p)))
 check('不注入任何 UI（展示交给桌宠）', ![...routes.keys()].includes('/feiyu-life/panel.js'))
 
@@ -104,7 +140,7 @@ const sse = mockRes()
 await routes.get('/feiyu-life/events')({ method: 'GET' }, sse)
 check('SSE 握手事件', sse.chunks.length === 1 && sse.chunks[0].includes('"hello"'))
 
-// —— 4. 催出门（真实网络漫游；断网走馆内风景回退，两者都算通过） ——
+// —— 4. 催出门（mock fetch 全拦截 → 馆内风景回退也算正常产出） ——
 {
   const res = mockRes()
   await routes.get('/feiyu-life/travel')({ method: 'POST' }, res)
@@ -137,15 +173,13 @@ check('SSE 握手事件', sse.chunks.length === 1 && sse.chunks[0].includes('"he
   }
 }
 
-
-
 // —— 5b. autoSay 默认关闭：归来不冒泡（不消耗 token） ——
 {
   said.length = 0
   const res = mockRes()
   await routes.get('/feiyu-life/travel')({ method: 'POST' }, res)
   const body = JSON.parse(res.body)
-  check('autoSay 默认关：归来不冒泡', body.ok === true && said.length === 0, 'said=' + said.length)
+  check('autoSay 默认关：归来不冒泡', body.ok === true && body.spoken === false, 'spoken=' + body.spoken)
 }
 
 // —— 5c. 人设自定义生效：日记用 persona.json 词库 ——
@@ -154,6 +188,33 @@ check('SSE 握手事件', sse.chunks.length === 1 && sse.chunks[0].includes('"he
   await routes.get('/feiyu-life/travel')({ method: 'POST' }, res)
   const body = JSON.parse(res.body)
   check('日记使用自定义人设开场白', body.diary.includes('自定义开场：'), body.diary.split('\n')[0].slice(0, 26))
+}
+
+// —— 5d. 明信片生图（mock）：归来产出 PNG + 索引 + 静态路由 ——
+{
+  const res = mockRes()
+  await routes.get('/feiyu-life/travel')({ method: 'POST' }, res)
+  const body = JSON.parse(res.body)
+  check('生图协议被调用（images/generations）', imageCalls.length >= 1 && imageCalls[imageCalls.length - 1].model === 'mock-model',
+    'prompt 长度 ' + (imageCalls[imageCalls.length - 1] ? imageCalls[imageCalls.length - 1].prompt.length : 0))
+  check('归来产出明信片 PNG', body.ok === true && /^[0-9]+\.png$/.test(body.postcardId || ''), body.postcardId)
+  const img = mockRes()
+  await routes.get('/feiyu-life/postcard')({ method: 'GET', url: '/feiyu-life/postcard?id=' + body.postcardId }, img)
+  check('明信片可路由（PNG 魔数）', img.statusCode === 200 && img.body.slice(0, 4).equals(PNG_MAGIC.subarray(0, 4)),
+    img.body.length + ' bytes')
+  const st = mockRes()
+  await routes.get('/feiyu-life/state')({ method: 'GET' }, st)
+  check('state 暴露明信片索引', (JSON.parse(st.body).postcards || []).length >= 1)
+}
+
+// —— 5e. QQ 水群（mock OneBot）：归来发群消息 ——
+{
+  const res = mockRes()
+  await routes.get('/feiyu-life/travel')({ method: 'POST' }, res)
+  const body = JSON.parse(res.body)
+  check('QQ 通道被调用（send_group_msg）', qqCalls.length >= 1 && qqCalls[qqCalls.length - 1].body.group_id === 123456,
+    qqCalls.length ? '已发 ' + qqCalls.length + ' 条' : '未调用')
+  check('归来报告 qqSent', body.qqSent === true)
 }
 
 // —— 6. say 端点 ——
@@ -183,6 +244,8 @@ check('SSE 握手事件', sse.chunks.length === 1 && sse.chunks[0].includes('"he
   const diaryFile = path.join(TMP, 'feiyu-life', 'diary.jsonl')
   check('state.json 已持久化', fs.existsSync(stateFile))
   check('diary.jsonl 已追加日记', fs.existsSync(diaryFile) && fs.readFileSync(diaryFile, 'utf8').trim().split('\n').length >= 1)
+  const cardsDir = path.join(TMP, 'feiyu-life', 'postcards')
+  check('明信片 PNG 已落盘', fs.existsSync(cardsDir) && fs.readdirSync(cardsDir).some((f) => f.endsWith('.png')))
 }
 
 console.log()
