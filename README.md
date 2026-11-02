@@ -34,9 +34,22 @@ dsh plugin --profile web add github:<你的用户名>/dsh-feiyu-life
 |---|---|---|
 | `/feiyu-life/state` | GET | 人生状态 JSON（mood / doing / journeys / postcards / stats） |
 | `/feiyu-life/events` | GET | SSE 事件流：roam-start / diary / mood / attention / postcard / qq-sent |
-| `/feiyu-life/travel` | POST | 催她出门（受红线保护，深夜/超限会被拒绝） |
+| `/feiyu-life/days` | GET | 生活档案目录：有记录的日期列表（first / last） |
+| `/feiyu-life/archive` | GET | 生活档案单日：`?date=YYYY-MM-DD` → 当天心情采样 + 日记全文 + 统计 |
+| `/feiyu-life/travel` | POST | 催她出门（受红线保护：深夜 / 每日上限都会被拒绝） |
 | `/feiyu-life/postcard` | GET | 明信片图片（?id=，生图开启时存在） |
 | `/feiyu-life/say` | POST | 她说话：`{"text": "..."}` 经宿主 sessionController 送进会话 |
+
+## 生活档案（v0.2.0）
+
+她把每天过成日记，心情每 30 分钟采样一条（`state.moodSamples`，上限 500 条约 10 天），
+`/days` + `/archive` 按天提供完整档案。桌宠的「人生」页签据此做成**可翻阅的生活档案**：
+日期导航（◀ ▶ 今天）、当天心情心电图、当天日记全文、最近明信片。
+
+> 实验脚本：`npm run experiment`（或 `node tools/experiment.mjs`）读取 `~/.dsh/feiyu-life/`，
+> 输出最近 7 天的《独自生活实验报告》到 `~/.dsh/feiyu-life/experiment/`——
+> 包含每日生活表、心情心电图、tick 连续性（采样中断检测）、日记唯一率、
+> 每日漫游红线核对，五项验收如实打勾/打叉。
 
 ## 配置 `~/.dsh/feiyu-life/config.json`
 
@@ -77,7 +90,8 @@ dsh plugin --profile web add github:<你的用户名>/dsh-feiyu-life
 ## 测试
 
 ```sh
-npm run smoke   # 或 node tools/smoke.mjs —— mock 宿主全链路演练
+npm run smoke       # 或 node tools/smoke.mjs —— mock 宿主全链路演练（30 项）
+npm run experiment  # 生活实验报告：最近 7 天验收（tick 连续性 / 心情波动 / 日记质量 / 红线）
 ```
 
 ## License

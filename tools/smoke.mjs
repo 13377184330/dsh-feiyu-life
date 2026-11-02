@@ -248,6 +248,31 @@ check('SSE 握手事件', sse.chunks.length === 1 && sse.chunks[0].includes('"he
   check('明信片 PNG 已落盘', fs.existsSync(cardsDir) && fs.readdirSync(cardsDir).some((f) => f.endsWith('.png')))
 }
 
+// —— 8. 生活档案（新增）：/days 与 /archive ——
+{
+  const todayKeyOf = (d) => {
+    const p = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  }
+  const today = todayKeyOf(new Date())
+
+  const daysRes = mockRes()
+  await routes.get('/feiyu-life/days')({ method: 'GET' }, daysRes)
+  const days = JSON.parse(daysRes.body)
+  check('GET /days 200 且包含今天', daysRes.statusCode === 200 && days.days.includes(today), JSON.stringify(days.days))
+
+  const arcRes = mockRes()
+  await routes.get('/feiyu-life/archive')({ method: 'GET', url: '/feiyu-life/archive?date=' + today }, arcRes)
+  const arc = JSON.parse(arcRes.body)
+  check('GET /archive 返回当天日记全文', arcRes.statusCode === 200 && arc.ok === true && arc.diary.length >= 1,
+    'diary=' + (arc.diary ? arc.diary.length : 'n/a'))
+  check('archive 含心情采样与统计', Array.isArray(arc.moodSamples) && arc.stats && arc.stats.diaryCount === arc.diary.length)
+
+  const badRes = mockRes()
+  await routes.get('/feiyu-life/archive')({ method: 'GET', url: '/feiyu-life/archive?date=bad' }, badRes)
+  check('坏日期返回 400', badRes.statusCode === 400)
+}
+
 console.log()
 console.log(failed === 0 ? `全部通过 ✅（${passed} 项）` : `${failed} 项失败 ❌`)
 try { fs.rmSync(TMP, { recursive: true, force: true }) } catch (e) {}
