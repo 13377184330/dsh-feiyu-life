@@ -21,7 +21,8 @@
   ],
   "scripts": {
     "smoke": "node tools/smoke.mjs",
-    "experiment": "node tools/experiment.mjs"
+    "experiment": "node tools/experiment.mjs",
+    "host": "node tools/host.mjs"
   },
   "dsh": {
     "bundle": {

@@ -87,11 +87,30 @@ dsh plugin --profile web add github:<你的用户名>/dsh-feiyu-life
 演示节奏：`tickMs` 调到 20000、`dailyMax` 调大即可看到高频人生流。
 人生数据（重启不丢）：`~/.dsh/feiyu-life/`（state.json / diary.jsonl / postcards/）。
 
+## 独立实验宿主（不依赖 DSH）
+
+DSH 的 **desktop profile 没有 webServer 服务**，本插件会因依赖缺失而挂起（web profile 正常）。
+做「独自生活」实验时，可不依赖 DSH，直接起一个独立宿主：
+
+```sh
+npm run host           # 或 node tools/host.mjs [--port 3099] [--tick 300000]
+```
+
+它会内置最小宿主（webServer / connection / sessionController 桩），加载本插件完整运行，
+数据仍写 `~/.dsh/feiyu-life/`。随后浏览器可直接打开：
+
+- `http://127.0.0.1:3099/feiyu-life/state`
+- `http://127.0.0.1:3099/feiyu-life/days`
+- `http://127.0.0.1:3099/feiyu-life/archive?date=YYYY-MM-DD`
+
+> 注意：实验宿主与 DSH 里加载的本插件共用同一份数据目录，**不要同时跑两个实例**（会双写）。
+
 ## 测试
 
 ```sh
 npm run smoke       # 或 node tools/smoke.mjs —— mock 宿主全链路演练（30 项）
 npm run experiment  # 生活实验报告：最近 7 天验收（tick 连续性 / 心情波动 / 日记质量 / 红线）
+npm run host        # 独立实验宿主（无 DSH 也能让她活着，附 HTTP 档案 API）
 ```
 
 ## License
